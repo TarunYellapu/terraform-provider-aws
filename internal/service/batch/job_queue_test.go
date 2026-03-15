@@ -230,6 +230,50 @@ func TestAccBatchJobQueue_priority(t *testing.T) {
 	})
 }
 
+func TestAccBatchJobQueue_schedulingPolicyUpdate(t *testing.T) {
+	ctx := acctest.Context(t)
+	var jobQueue1, jobQueue2 awstypes.JobQueueDetail
+	resourceName := "aws_batch_job_queue.test"
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	schedulingPolicyName1 := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	schedulingPolicyName2 := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t); testAccPreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.BatchServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckJobQueueDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccJobQueueConfig_state(rName, string(awstypes.JQStateEnabled)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckJobQueueExists(ctx, resourceName, &jobQueue1),
+					acctest.CheckResourceAttrRegionalARNFormat(ctx, resourceName, names.AttrARN, "batch", "job-queue/{name}"),
+					resource.TestCheckResourceAttr(resourceName, "compute_environment_order.#", "1"),
+					resource.TestCheckResourceAttrPair(resourceName, "compute_environment_order.0.compute_environment", "aws_batch_compute_environment.test", names.AttrARN),
+					resource.TestCheckResourceAttr(resourceName, "job_state_time_limit_action.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, names.AttrName, rName),
+					resource.TestCheckResourceAttr(resourceName, names.AttrPriority, "1"),
+					resource.TestCheckResourceAttr(resourceName, names.AttrState, string(awstypes.JQStateEnabled)),
+					resource.TestCheckResourceAttr(resourceName, acctest.CtTagsPercent, "0"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				Config: testAccJobQueueConfig_schedulingPolicy(rName, schedulingPolicyName1, schedulingPolicyName2, "first"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckJobQueueExists(ctx, resourceName, &jobQueue2),
+					resource.TestCheckResourceAttrSet(resourceName, "scheduling_policy_arn"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccBatchJobQueue_schedulingPolicy(t *testing.T) {
 	ctx := acctest.Context(t)
 	var jobQueue1, jobQueue2 awstypes.JobQueueDetail

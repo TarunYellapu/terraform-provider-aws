@@ -75,6 +75,37 @@ type jobQueueResource struct {
 	framework.WithList
 }
 
+type schedulingPolicyLifecycleModifier struct{}
+
+func (m schedulingPolicyLifecycleModifier) Description(_ context.Context) string {
+	return "Requires Queue replacement when scheduling_policy_arn is added or removed."
+}
+
+func (m schedulingPolicyLifecycleModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m schedulingPolicyLifecycleModifier) PlanModifyString(
+	ctx context.Context,
+	req planmodifier.StringRequest,
+	resp *planmodifier.StringResponse,
+) {
+	if req.PlanValue.IsUnknown() {
+		return
+	}
+
+	if req.StateValue.IsUnknown() {
+		return
+	}
+
+	stateNull := req.StateValue.IsNull()
+	planNull := req.PlanValue.IsNull()
+
+	if stateNull != planNull {
+		resp.RequiresReplace = true
+	}
+}
+
 func (r *jobQueueResource) Schema(ctx context.Context, request resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
 		Version: 2,
@@ -97,6 +128,9 @@ func (r *jobQueueResource) Schema(ctx context.Context, request resource.SchemaRe
 			"scheduling_policy_arn": schema.StringAttribute{
 				CustomType: fwtypes.ARNType,
 				Optional:   true,
+				PlanModifiers: []planmodifier.String{
+					schedulingPolicyLifecycleModifier{},
+				},
 			},
 			names.AttrState: schema.StringAttribute{
 				Required: true,
